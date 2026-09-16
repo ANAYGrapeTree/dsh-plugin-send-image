@@ -3,6 +3,7 @@ node_modules/
 
 # local verification scratch space
 .verify/
+.pnpm-store/
 
 # logs and editor noise
 *.log
