@@ -4,6 +4,13 @@
  * 功能：让 DSH 助手（模型）能在聊天中向用户发送图片，图片以卡片形式渲染，
  *       点击卡片即可放大查看（全屏灯箱，Esc / 点击背景 / 关闭按钮退出）。
  *
+ * 注意：这一「动态插件」形态只能渲染工具卡片。正文流里的图片行需要
+ *       Conversation 引擎（`uiConversation` 服务 + `conversation.chat.node`），
+ *       而动态插件的客户端运行时只暴露
+ *       `layout/locale/sessions/slots/theme/timer/uiWorkspace/workspaces`。
+ *       想让图片显示在正文里（工具组折叠也可见），请安装 lib/ 里的插件包
+ *       （见 README「图片为什么能逃出工具调用组」）。
+ *
  * 实现原理：
  *  - Host 半区注册动态工具 `send_image`：读取图片文件（fs）→ 校验并持久化
  *    （attachments 服务，attachment-local）→ 返回内容寻址引用。模型看到的

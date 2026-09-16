@@ -12,18 +12,35 @@
 ## 功能
 
 - 助手生成或找到图片后调用 `send_image` 工具，把 PNG/JPEG/WebP/GIF 发到对话里。
-- 图片以缩略图卡片呈现，可带一句说明文字；点击卡片打开全屏灯箱。
-- 图片字节存放在 DSH 附件服务里（内容寻址 + 摘要校验），卡片通过插件自己的
+- 图片渲染在**正文流**里：每一轮（Turn）里发过的图片在自己的一行中显示，
+  和助手的文字回答并排可见；**工具调用组折叠起来时图片依然显示**，
+  紧凑模式下也不会被折进「N 次工具调用」里。
+- 可带一句说明文字（`note`）；点击图片打开全屏灯箱（Esc / 点击背景 / ✕ 关闭）。
+- 工具行本身只留一行状态（`已发送图片 · 文件名`），所以同一张图不会重复画两遍。
+- 图片字节存放在 DSH 附件服务里（内容寻址 + 摘要校验），前端通过插件自己的
   `/send-image/...` 路由取回，不依赖会话引用授权。
 - 模型侧只看到纯文本 JSON 结果，不会把 image 内容块塞进模型历史，
   因此 deepseek 纯文本路由不会因图片报 `UNSUPPORTED_CONTENT`。
+
+## 图片为什么能逃出工具调用组
+
+正文行不是塞在工具卡片里的，而是插件注册的一个 Conversation 业务 Definition：
+
+| 关注点 | 做法 |
+| --- | --- |
+| 数据 | `ConversationNodeDefinition(kind: 'send-image')` 按 Turn 折叠本轮的 `send_image` 工具结果（`tool/call` 认名字、`tool/result` 解 JSON）。 |
+| 呈现 | keyed slot `conversation.chat.node`（key = `send-image`）渲染图片行 + 灯箱。 |
+| 位置 | 锚点取 Turn 的答案边界 `turn-process.answerAnchorSeq + 0.06`：Turn 过程折叠占用的区间是 `[processStartSeq, answerAnchorSeq)`，落在边界之后就不是过程成员，因此折叠工具组时不会被一起隐藏；同时仍排在 turn-tail（时间戳/操作行，偏移 0.1）之前。 |
+
+Turn 还在跑的时候过程折叠不存在，锚点回退到「最后一次 send_image 结果的 seq」，
+图片就跟着工具调用立刻出现；Turn 一结束，行会自动挪到回答下方。
 
 ## 架构
 
 | 半区 | 职责 |
 | --- | --- |
 | Host (`lib/index.js`) | 注册工具 `send_image`：`fs` 读取 → `attachments.saveImage` 持久化（内容寻址）→ 返回 JSON 引用。另注册 HTTP 路由 `/send-image/<sha256>/<bytes>/<width>/<height>.<ext>`，读取时经 `readImage` 做摘要 + 元数据双重校验后流式返回图片字节。 |
-| Client (`lib/client.js`) | 手写 module-loader bundle，**自包含**：只 `require('react')`（平台真种子词），自绘缩略图 + 原生 DOM 全屏灯箱，注册 `tool.call.toolview`（key=`send_image`）卡片。图片字节直接走 `/send-image/…` 路由，无 RPC、无 base64。 |
+| Client (`lib/client.js`) | 手写 module-loader bundle，**自包含**：只 `require('react')`（平台真种子词），自绘图片行 + 原生 DOM 全屏灯箱。注册三样东西：Conversation Definition（`kind: 'send-image'`）、keyed `conversation.chat.node`（key=`send-image`）渲染正文图片行、keyed `tool.call.toolview`（key=`send_image`）渲染工具行状态。图片字节直接走 `/send-image/…` 路由，无 RPC、无 base64。 |
 
 **为什么不把 image 块放进工具结果**：内置 `readAttachment` 要求会话日志里有事件以
 image 块引用该附件；而 image 块一旦进入模型历史，会让 deepseek 纯文本路由在下一次
@@ -68,8 +85,12 @@ dsh plugin --profile web add "C:\path\to\dsh-plugin-send-image"
 
 ### 为什么必须重启
 
-客户端模块表与启动清单只在启动时读取，所以新增或更新插件后必须**重启 `dsh web`**
-才会看到图片卡片。profile 的 `cordis.patch.yml` 是 live 重载的，但客户端 bundle 不是。
+客户端模块表与启动清单只在启动时读取，所以新增插件后必须**重启 `dsh web`**。
+profile 的 `cordis.patch.yml` 是 live 重载的，但客户端 bundle 不是。
+
+> 例外：compose 里挂了 `client-hmr` 时，它会轮询每个客户端 bundle 的
+> `lib/client.js`，文件一变就通过 `/plugins/events` 让浏览器热重载这一行 ——
+> 这种情况下改完 `lib/client.js` 刷新一下页面即可，不用重启。
 
 ## 使用
 
@@ -120,18 +141,22 @@ dsh plugin --profile web remove @dsh-user/send-image
 | 路径 | 说明 |
 | --- | --- |
 | `lib/index.js` | Host 半区：`send_image` 工具 + 图片字节路由 |
-| `lib/client.js` | Client 半区：对话流里的图片卡片 |
+| `lib/client.js` | Client 半区：正文图片行（Conversation Definition + `conversation.chat.node`）+ 工具行状态 |
 | `cordis.patch.yml` | bundle 层 patch，让 `dsh plugin add` 自动激活插件 |
-| `send-image.plugin.js` | 另一种形态：**动态插件**（会话内临时生效，重启失效，适合临时试玩） |
+| `send-image.plugin.js` | 另一种形态：**动态插件**（会话内临时生效，重启失效，适合临时试玩）。注意：动态插件的客户端运行时只暴露 `layout/locale/sessions/slots/theme/timer/uiWorkspace/workspaces`，**没有 `uiConversation`**，所以这一形态只能渲染工具卡片缩略图，做不到正文行。 |
 | `test-image.png` | 测试图片 |
+| `test-image-2.png` | 第二张测试图（验证正文图片行、多图排序用） |
+| `test/client-smoke.mjs` | Node 冒烟测试：桩掉 `window.__ModuleLoader__` 与 React，直接驱动 Conversation Definition 与两个渲染件（`npm test`，34 项断言，不需要浏览器） |
 | `INSTALL.md` | 在另一台电脑（如办公室）从零安装的完整步骤 |
 
 ## 关键接口（v0.1.0-rc.5）
 
 - Host：`ctx.tools.register`（手写 JSON Schema，零外部依赖）、`ctx.get('webServer')`（prefix 路由）、
   `ctx.get('attachments')`（imageLimits / saveImage / readImage）、`ctx.get('fs')`（resolve / readBytes / processPath）
-- Client：`window.__ModuleLoader__.load({ id, factory })`；种子词 `react`、`@deepseek-ai/dsh-client-ui-attachment`；
-  `ctx.slots.inject('tool.call.toolview', …)`
+- Client：`window.__ModuleLoader__.load({ id, factory })`；种子词 `react`；
+  `ctx.inject(['slots','uiConversation'], …)` + `uiConversation.events.register(definition)` +
+  `ctx.slots.inject('conversation.chat.node' | 'tool.call.toolview', …)`；
+  锚点参考 `TurnProcessSpec.answerAnchorSeq` 与 `CHAT_SYNTHETIC_SEQ_OFFSETS`
 
 ## License
 

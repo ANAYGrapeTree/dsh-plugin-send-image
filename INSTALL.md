@@ -109,7 +109,9 @@ pnpm dsh web --dump-config | Select-String -Pattern 'send-image' -Context 1,2
 把 test-image.png 发给我
 ```
 
-助手会调用 `send_image`，对话里出现一张缩略图卡片；**点击卡片能全屏放大**就成功了。
+助手会调用 `send_image`：工具调用组里出现一行 `已发送图片 · test-image.png`，
+**图片本身出现在正文流里**（和助手的文字回答并排，工具组折叠起来也照样显示）；
+**点击图片能全屏放大**就成功了。
 
 ---
 
@@ -124,10 +126,13 @@ pnpm dsh web --dump-config | Select-String -Pattern 'send-image' -Context 1,2
 - profile 里的依赖是否真的存在：
   `Get-Content "$env:DSH_HOME\profiles\web\package.json"`
 
-### 2. 图片卡片不出现 / 一直「正在发送图片…」
+### 2. 图片不出现 / 一直「正在发送图片…」/ 只有工具行没有正文图片
 
-- 卡片由**客户端** bundle 渲染，改动后必须重启 `dsh web`（刷新浏览器页面不够）。
+- 图片行由**客户端** bundle 渲染，`lib/client.js` 改动后必须重启 `dsh web`
+  （挂了 `client-hmr` 的话刷新页面即可）。
 - 打开浏览器开发者工具看 Console 有没有报错，Network 里 `/send-image/...` 请求是否 404。
+- 正文图片行依赖客户端的 `uiConversation` 服务（Conversation 引擎）。若这个 profile
+  把 `ui-conversation` 组合掉了，插件会自动降级成「只有工具行状态」，不会报错。
 - 确认 `package.json` 里 `dsh.client.platform` 仍为 `web`。
 
 ### 3. send_image 报「the attachment service is not mounted」

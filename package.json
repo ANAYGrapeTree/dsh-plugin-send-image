@@ -1,13 +1,16 @@
 {
   "name": "@dsh-user/send-image",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "private": true,
-  "description": "Let the DSH assistant send images to the user in chat, rendered as clickable picture cards (click to enlarge).",
+  "description": "Let the DSH assistant send images to the user in chat, rendered as their own row in the conversation body (visible even when the tool group is collapsed) and enlarged on click.",
   "license": "MIT",
   "engines": {
     "node": ">=22.19.0"
   },
   "main": "lib/index.js",
+  "scripts": {
+    "test": "node test/client-smoke.mjs"
+  },
   "exports": {
     ".": "./lib/index.js",
     "./client": "./lib/client.js",
