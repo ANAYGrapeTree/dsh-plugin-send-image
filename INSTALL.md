@@ -172,17 +172,38 @@ pnpm config set https-proxy http://<proxy-host>:<port>
 
 ### 6. pnpm 提示要 allowBuilds / 阻止了构建脚本
 
-本插件**没有任何 `scripts`**（`lib/` 是直接提交的产物，不需要构建），所以正常不会触发
-pnpm 的构建脚本拦截。若 pnpm 仍然报某个包需要 `allowBuilds`，按它打印的 key 写进
-`$DSH_HOME/profiles/web/pnpm-workspace.yaml` 的 `allowBuilds`，再重跑第 2 步。
+本插件**没有任何构建脚本**（`lib/` 是直接提交的产物，唯一的 scripts 是一条
+`npm test`），所以正常不会触发 pnpm 的构建脚本拦截。若 pnpm 仍然报某个包需要
+`allowBuilds`，按它打印的 key 写进 `$DSH_HOME/profiles/web/pnpm-workspace.yaml`
+的 `allowBuilds`，再重跑第 2 步。
 
 ### 7. 想更新到最新版
+
+在 **dsh 源码仓库根目录**（全局装的 dsh 就直接用 `dsh`）执行：
 
 ```powershell
 pnpm dsh plugin --profile web update @dsh-user/send-image
 ```
 
-然后重启 `pnpm dsh web`。
+确认真的换成新版了（0.2.0 起图片渲染在正文流里）：
+
+```powershell
+(Get-Content "$env:DSH_HOME\profiles\web\node_modules\@dsh-user\send-image\package.json" |
+  ConvertFrom-Json).version      # 期望 0.2.0
+```
+
+然后**重启** `pnpm dsh web`。
+
+如果 `update` 之后版本号没变（pnpm 认了缓存/锁文件里的旧 commit），退一步用重装：
+
+```powershell
+pnpm dsh plugin --profile web remove @dsh-user/send-image
+pnpm dsh plugin --profile web add github:ANAYGrapeTree/dsh-plugin-send-image
+# 重启 pnpm dsh web
+```
+
+> 0.1.x → 0.2.0 只改了**客户端** bundle（`lib/client.js`）和文档，Host 半区、
+> `cordis.patch.yml`、profile 的 `dsh.profile.bundles` 都不用动，也没有新增配置。
 
 ---
 

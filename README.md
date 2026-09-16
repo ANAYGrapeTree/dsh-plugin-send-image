@@ -121,6 +121,17 @@ dsh plugin --profile web update @dsh-user/send-image
 
 然后重启 `dsh web`。（`github:` 规格会重新拉取默认分支的最新提交。）
 
+版本号确认（当前 0.2.0 起图片渲染在正文流里）：
+
+```powershell
+(Get-Content "$env:DSH_HOME\profiles\web\node_modules\@dsh-user\send-image\package.json" |
+  ConvertFrom-Json).version
+```
+
+若 `update` 后版本没变（pnpm 拿了缓存里的旧 commit），改用重装：
+`dsh plugin --profile web remove @dsh-user/send-image` +
+`dsh plugin --profile web add github:ANAYGrapeTree/dsh-plugin-send-image`，再重启。
+
 ## 卸载
 
 ```powershell
