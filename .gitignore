@@ -1,0 +1,10 @@
+# dependencies
+node_modules/
+
+# local verification scratch space
+.verify/
+
+# logs and editor noise
+*.log
+.DS_Store
+Thumbs.db

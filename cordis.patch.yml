@@ -1,0 +1,15 @@
+# send-image bundle 层：向 dsh profile 注入插件行。
+#
+# 这个文件让插件支持「一条命令安装」：
+#   dsh plugin --profile web add github:ANAYGrapeTree/dsh-plugin-send-image
+# 因为 package.json 声明了 dsh.bundle.patch 指向本文件，dsh plugin add 会把本包
+# 记入 profile 的 dsh.profile.bundles，从而自动应用下面这条 insert，无需手工编辑
+# 用户自己的 cordis.patch.yml。同时插件也会出现在 DSH 的设置 / 插件面板中。
+#
+# 注意：只有列在 profile 的 dsh.profile.bundles 中的包才会应用本文件。若你改用
+# 手工方式（把本包作为普通依赖 + 在 profile 的 cordis.patch.yml 里写 insert），
+# 本文件不会被读取，两边不会重复注册。
+
+- insert:
+    - id: send-image
+      name: '@dsh-user/send-image'
