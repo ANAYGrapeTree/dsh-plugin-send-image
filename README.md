@@ -23,12 +23,17 @@
 | 半区 | 职责 |
 | --- | --- |
 | Host (`lib/index.js`) | 注册工具 `send_image`：`fs` 读取 → `attachments.saveImage` 持久化（内容寻址）→ 返回 JSON 引用。另注册 HTTP 路由 `/send-image/<sha256>/<bytes>/<width>/<height>.<ext>`，读取时经 `readImage` 做摘要 + 元数据双重校验后流式返回图片字节。 |
-| Client (`lib/client.js`) | 手写 module-loader bundle：注册 `tool.call.toolview`（key=`send_image`）卡片，复用平台种子模块 `@deepseek-ai/dsh-client-ui-attachment` 的 `ImageGallery`（缩略图 / 加载重试 / 点击放大灯箱）。图片字节直接走 `/send-image/…` 路由，无 RPC。 |
+| Client (`lib/client.js`) | 手写 module-loader bundle，**自包含**：只 `require('react')`（平台真种子词），自绘缩略图 + 原生 DOM 全屏灯箱，注册 `tool.call.toolview`（key=`send_image`）卡片。图片字节直接走 `/send-image/…` 路由，无 RPC、无 base64。 |
 
 **为什么不把 image 块放进工具结果**：内置 `readAttachment` 要求会话日志里有事件以
 image 块引用该附件；而 image 块一旦进入模型历史，会让 deepseek 纯文本路由在下一次
 模型调用时抛 `UNSUPPORTED_CONTENT`。所以工具结果保持纯文本 JSON，图片走独立字节路由。
 
+**为什么客户端不 import `@deepseek-ai/dsh-client-ui-attachment`**：那个包的客户端半区只导出
+`inject` / `apply`，源码注释写得很明确 —— *without exporting React components as package values*，
+所以拿不到 `ImageGallery`（拿到的是 `undefined`，渲染时抛错被 error boundary 吞掉，表现就是卡片完全不出现）。
+而且它也不在平台种子词表里（真种子词只有 `packages/client/web/src/seed.ts` 那 9 个），
+`require` 它只是靠启动顺序碰巧解析。所以卡片自己画，只依赖 `react`。
 ## 安装
 
 ### 方式 A：从 GitHub 安装（推荐，一条命令）
